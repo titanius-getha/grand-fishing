@@ -10,11 +10,11 @@
 #include "SFML/System/Vector2.hpp"
 #include "SFML/Window/VideoMode.hpp"
 
-#define WIDTH 100'00ULL
-#define HEIGHT 100'00ULL
-#define POSITION_BOUND WIDTH*HEIGHT-1
+#define WIDTH 100'0ULL
+#define HEIGHT 100'0ULL
+#define POSITION_BOUND WIDTH* HEIGHT - 1
 #define SHIP_COUNT 100'000ULL
-#define WIN_FISH_COUNT 10'000ULL
+#define WIN_FISH_COUNT 10'000LL
 #define TICKS_PER_SECOND 10
 #define TICK_DURATION_MS (1000 / TICKS_PER_SECOND)
 
@@ -40,7 +40,7 @@ enum ShipState {
     DEAD = 3,
 };
 
-/* 
+/*
 Данные лодки упакованы в 64-битное число.
 Ниже расшифровка, начиная со старшего бита:
 
@@ -54,8 +54,8 @@ enum ShipState {
 [2 бита - тип лодки]
 
 Положение лодки хранится как одно число p < 100'000 * 100'000 (10^10).
-Cмещения - когда лодка куда-то плывет, можно хранить не новую координату, 
-а смещение от текущей по x и y, декрементируя их каждый тик. 
+Cмещения - когда лодка куда-то плывет, можно хранить не новую координату,
+а смещение от текущей по x и y, декрементируя их каждый тик.
 По 4 бита выбраны, чтобы в целом обеспечить 16 значений на координату:
 от 0 до 15 или от -8 до +7, реализуя смещения в плюс и минус координату.
 Таким образом, следующую клетку лодка выберет в радиусе 7-8 клеток.
@@ -74,15 +74,15 @@ constexpr uint64_t MASK_14BIT = 0x3FFFULL;
 constexpr uint64_t MASK_34BIT = 0x3FFFFFFFFULL;
 
 // Инициализация распределений для значений симуляции.
-std::uniform_int_distribution<int>shipTypeRng{0, 2};
-std::uniform_int_distribution<int>shipTimerRng{1, 3};
-std::uniform_int_distribution<int64_t>shipPositionRng{0, POSITION_BOUND};
-std::uniform_int_distribution<int>shipOffsetRng{0, 15};
-std::uniform_int_distribution<int>catchRng{1, 10};
-std::uniform_int_distribution<int>fishRng{0, 15};
-std::uniform_int_distribution<int>cellTimerRnd{15, 30};
+std::uniform_int_distribution<int> shipTypeRng { 0, 2 };
+std::uniform_int_distribution<int> shipTimerRng { 1, 3 };
+std::uniform_int_distribution<int64_t> shipPositionRng { 0, POSITION_BOUND };
+std::uniform_int_distribution<int> shipOffsetRng { 0, 15 };
+std::uniform_int_distribution<int> catchRng { 1, 10 };
+std::uniform_int_distribution<int> fishRng { 0, 15 };
+std::uniform_int_distribution<int> cellTimerRnd { 15, 30 };
 
-std::mt19937 rng(std::random_device{}());
+std::mt19937 rng(std::random_device {}());
 
 // Устанавливает указанное значение с указанной маской и смещением. Вернет обновленное число.
 inline uint64_t setbits(uint64_t n, uint64_t shift, uint64_t mask, uint64_t value)
@@ -116,7 +116,7 @@ int main()
     Инициализируем максимальным значением таймера клетки - 30.
     */
     std::vector<std::vector<uint64_t>> cellsTimers(30);
-    
+
     /*
     Посчитаем среднее истечение клеток за ход, чтобы избежать реаллока векторов, если клеток истечет больше.
     Средний таймер - (15 + 30) / 2 = 22.5 секунды.
@@ -134,15 +134,14 @@ int main()
     */
     std::vector<uint64_t> ships(SHIP_COUNT);
     // Инициализируем лодки.
-    for (int i = 0; i < SHIP_COUNT; i++)
-    {
+    for (int i = 0; i < SHIP_COUNT; i++) {
         // Генерируем лодку сразу в режиме рыбалки.
         uint64_t ship = 0;
         ship |= shipTypeRng(rng); // Тип лодки.
         ship |= ShipState::FISHING << STATE_SHIFT; // Состояние лодки.
         ship |= shipTimerRng(rng) << TIMER_SHIFT; // Таймер ожидания конца улова.
         ship |= shipPositionRng(rng) << POSITION_SHIFT; // Позиция лодки.
-        
+
         ships[i] = ship;
     }
 
@@ -153,8 +152,7 @@ int main()
     auto lastTick = Clock::now();
     std::chrono::milliseconds tickDuration(TICK_DURATION_MS);
     // Основной цикл, симулирующий один тик.
-    while (activeShips > 0 && window.isOpen())
-    {
+    while (activeShips > 0 && window.isOpen()) {
         // Обрабатываем события SFML.
         while (const std::optional event = window.pollEvent()) {
             renderer.handleEvent(event);
@@ -166,8 +164,7 @@ int main()
 
         // Не выполняем шаги симуляции, если с последнего тика прошло меньше tickDuration времени.
         auto now = Clock::now();
-        if (now - lastTick < tickDuration)
-        {
+        if (now - lastTick < tickDuration) {
             continue;
         }
 
@@ -175,8 +172,7 @@ int main()
         // Индекс текущей группы таймеров, которые заканчиваются.
         int expiringGroupIdx = tick % 30;
         auto& expiring = cellsTimers[expiringGroupIdx];
-        for (uint64_t cellIdx : expiring)
-        {
+        for (uint64_t cellIdx : expiring) {
             // Удаляем клетку, переводя ее в неопределенное состояние.
             activeCells.erase(cellIdx);
         }
@@ -184,22 +180,19 @@ int main()
         expiring.clear();
 
         // Обрабатываем суда.
-        for (int i = 0; i < SHIP_COUNT; i++)
-        {
+        for (int i = 0; i < SHIP_COUNT; i++) {
             uint64_t ship = ships[i];
 
             uint8_t shipType = ship & MASK_2BIT; // Тип лодки
             uint8_t shipState = (ship >> STATE_SHIFT) & MASK_2BIT; // Состояние лодки.
 
             // Обновляем лодку
-            switch (shipState)
-            {
+            switch (shipState) {
             case ShipState::DEAD:
                 continue;
-            case ShipState::FLOATING:
-            {
+            case ShipState::FLOATING: {
                 // Обрабатываем передвижение судна.
-                
+
                 uint64_t shipPosition = (ship >> POSITION_SHIFT) & MASK_34BIT;
 
                 // Получаем сдвиги до целевой позиции.
@@ -219,9 +212,8 @@ int main()
 
                     break;
                 }
-                
-                if (offsetX > 0)
-                {
+
+                if (offsetX > 0) {
                     // Если смещение по X > 0, значит плывем в положительную сторону по x.
                     offsetX--;
                     shipPosition++;
@@ -230,16 +222,15 @@ int main()
                     if (shipPosition > POSITION_BOUND) {
                         shipPosition = 0;
                     }
-                    
+
                     // Устанавливаем новые значение смещения и положения.
-                    ship = setbits(ship, OFFSET_X_SHIFT, MASK_4BIT, offsetX+8);
+                    ship = setbits(ship, OFFSET_X_SHIFT, MASK_4BIT, offsetX + 8);
                     ship = setbits(ship, POSITION_SHIFT, MASK_34BIT, shipPosition);
 
                     break;
                 }
 
-                if (offsetX < 0)
-                {
+                if (offsetX < 0) {
                     // Если смещение по X < 0, значит плывем в отрицательную сторону по x.
                     offsetX++;
                     shipPosition--;
@@ -254,58 +245,52 @@ int main()
                     }
 
                     // Устанавливаем новые значение смещения и положения.
-                    ship = setbits(ship, OFFSET_X_SHIFT, MASK_4BIT, offsetX+8);
+                    ship = setbits(ship, OFFSET_X_SHIFT, MASK_4BIT, offsetX + 8);
                     ship = setbits(ship, POSITION_SHIFT, MASK_34BIT, shipPosition);
 
                     break;
                 }
 
-                if (offsetY > 0)
-                {
+                if (offsetY > 0) {
                     /*
                     Если смещение по Y > 0, значит мы должны двигаться вверх.
                     Для этого нужно уменьшить текущее положение на одну ширину карты.
                     */
                     offsetY--;
-                    
-                    if (shipPosition < WIDTH)
-                    {
-                        // Если позиция меньше ширины поля, значит мы на первой строке, 
-                        // и движение наверх должно перенести нас на 
+
+                    if (shipPosition < WIDTH) {
+                        // Если позиция меньше ширины поля, значит мы на первой строке,
+                        // и движение наверх должно перенести нас на
                         // самую нижнюю линию.
                         shipPosition = POSITION_BOUND - (WIDTH - shipPosition - 1);
-                    } else
-                    {
+                    } else {
                         shipPosition -= WIDTH;
                     }
 
-                    ship = setbits(ship, OFFSET_Y_SHIFT, MASK_4BIT, offsetY+8);
+                    ship = setbits(ship, OFFSET_Y_SHIFT, MASK_4BIT, offsetY + 8);
                     ship = setbits(ship, POSITION_SHIFT, MASK_34BIT, shipPosition);
 
                     break;
                 }
 
-                if (offsetY < 0)
-                {
+                if (offsetY < 0) {
                     /*
                     Если смещение по Y < 0, значит мы должны двигаться вниз.
                     Для этого нужно увеличить текущее положение на одну ширину карты.
                     */
                     offsetY++;
 
-                    if (shipPosition + WIDTH > POSITION_BOUND)
-                    {
+                    if (shipPosition + WIDTH > POSITION_BOUND) {
                         /*
                         Если новая позиция выходит за границы, значит мы на нижней строке.
                         Движение еще ниже должно привести нас на первую строку.
                         */
                         shipPosition = WIDTH - (POSITION_BOUND - shipPosition) - 1;
-                    } else
-                    {
+                    } else {
                         shipPosition += WIDTH;
                     }
 
-                    ship = setbits(ship, OFFSET_Y_SHIFT, MASK_4BIT, offsetY+8);
+                    ship = setbits(ship, OFFSET_Y_SHIFT, MASK_4BIT, offsetY + 8);
                     ship = setbits(ship, POSITION_SHIFT, MASK_34BIT, shipPosition);
 
                     break;
@@ -313,8 +298,7 @@ int main()
 
                 break;
             }
-            case ShipState::FISHING:
-            {
+            case ShipState::FISHING: {
                 // Обрабатываем состояние рыбалки.
 
                 uint64_t shipPosition = (ship >> POSITION_SHIFT) & MASK_34BIT;
@@ -324,13 +308,12 @@ int main()
                 fishTimer--;
                 ship = setbits(ship, TIMER_SHIFT, MASK_2BIT, fishTimer);
 
-                if (fishTimer > 0)
-                {
+                if (fishTimer > 0) {
                     break;
                 }
 
                 // Если таймер дошел до нуля, реализуем логику вылавливания рыбы.
-                    
+
                 // Генерируем количество рыбы, которое выловила лодка.
                 uint8_t fishCatched = catchRng(rng);
 
@@ -340,8 +323,7 @@ int main()
                 */
                 auto it = activeCells.find(shipPosition);
                 uint8_t cellFishCounter = 0;
-                if (it == activeCells.end())
-                {
+                if (it == activeCells.end()) {
                     /*
                     Если итератор равен end(), текущая клетка была в неопределенном состоянии.
                     Активируем ее.
@@ -353,8 +335,7 @@ int main()
                     if (fishCatched > cellFishCounter) {
                         fishCatched = cellFishCounter;
                         cellFishCounter = 0;
-                    } else
-                    {
+                    } else {
                         cellFishCounter -= fishCatched;
                     }
 
@@ -366,8 +347,7 @@ int main()
                     int timerIdx = (tick + cellTimeout) % 30;
                     // Помещаем индекс текущей клетки в кольцевой буфер.
                     cellsTimers[timerIdx].push_back(shipPosition);
-                } else 
-                {
+                } else {
                     // Если клетка уже есть в карте.
 
                     cellFishCounter = it->second;
@@ -375,8 +355,7 @@ int main()
                     if (fishCatched > cellFishCounter) {
                         fishCatched = cellFishCounter;
                         cellFishCounter = 0;
-                    } else
-                    {
+                    } else {
                         cellFishCounter -= fishCatched;
                     }
 
@@ -386,12 +365,11 @@ int main()
 
                 // Обновляем общее количество рыбы, которое выловила лодка.
                 uint64_t shipFishCounter = (ship >> FISH_SHIFT) & MASK_14BIT;
-                shipFishCounter = std::min(shipFishCounter + fishCatched, WIN_FISH_COUNT);
+                shipFishCounter = std::min(static_cast<long long int>(shipFishCounter + fishCatched), WIN_FISH_COUNT);
                 ship = setbits(ship, FISH_SHIFT, MASK_14BIT, shipFishCounter);
 
                 // Проверяем условие победы для лодки
-                if (shipFishCounter == WIN_FISH_COUNT)
-                {
+                if (shipFishCounter == WIN_FISH_COUNT) {
                     // Лодка победила, ставим ей состояние уплывания с карты.
                     ship = setbits(ship, STATE_SHIFT, MASK_2BIT, ShipState::FINISHING);
                     break;
@@ -401,58 +379,52 @@ int main()
                 Лодка еще не победила, но рыбалку закончила.
                 Определяем дальнейшее поведение лодки согласно ее типу.
                 */
-                switch (shipType)
-                {
-                    case ShipType::GREEDY:
-                    {
-                        // Жадная лодка рыбачит, пока не выловит все на текущей клетке.
+                switch (shipType) {
+                case ShipType::GREEDY: {
+                    // Жадная лодка рыбачит, пока не выловит все на текущей клетке.
 
-                        if (cellFishCounter == 0)
-                        {
-                            // На текущей клетке закончилась рыба.
+                    if (cellFishCounter == 0) {
+                        // На текущей клетке закончилась рыба.
 
-                            // Генерируем случайные смещения для лодки.
-                            ship = setbits(ship, OFFSET_X_SHIFT, MASK_4BIT, shipOffsetRng(rng));
-                            ship = setbits(ship, OFFSET_Y_SHIFT, MASK_4BIT, shipOffsetRng(rng));
-                            // Ставим лодке состояние плавания.
-                            ship = setbits(ship, STATE_SHIFT, MASK_2BIT, ShipState::FLOATING);
-
-                            break;
-                        }
-
-                        // На текущей клетке еще не закончилась рыба.
-
-                        // Просто переустанавливаем таймер ожидания улова.
-                        ship = setbits(ship, TIMER_SHIFT, MASK_2BIT, shipTimerRng(rng));
-
-                        break;
-                    }
-                    case ShipType::LAZY:
-                    {
-                        /*
-                        Ленивая лодка никогда никуда не двигается.
-                        Просто переустанавливаем таймер ожидания улова.
-                        */
-                        ship = setbits(ship, TIMER_SHIFT, MASK_2BIT, shipTimerRng(rng));
-
-                        break;
-                    }
-                    case ShipType::RESTLESS:
-                    {
-                        // Непоседа просто двигается на 1 клетку вправо.
-
-                        // Устанавливаем сдвиг на 1 по x и состояние плавания.
-                        ship = setbits(ship, OFFSET_X_SHIFT, MASK_4BIT, 1 + 8);
+                        // Генерируем случайные смещения для лодки.
+                        ship = setbits(ship, OFFSET_X_SHIFT, MASK_4BIT, shipOffsetRng(rng));
+                        ship = setbits(ship, OFFSET_Y_SHIFT, MASK_4BIT, shipOffsetRng(rng));
+                        // Ставим лодке состояние плавания.
                         ship = setbits(ship, STATE_SHIFT, MASK_2BIT, ShipState::FLOATING);
 
                         break;
                     }
+
+                    // На текущей клетке еще не закончилась рыба.
+
+                    // Просто переустанавливаем таймер ожидания улова.
+                    ship = setbits(ship, TIMER_SHIFT, MASK_2BIT, shipTimerRng(rng));
+
+                    break;
+                }
+                case ShipType::LAZY: {
+                    /*
+                    Ленивая лодка никогда никуда не двигается.
+                    Просто переустанавливаем таймер ожидания улова.
+                    */
+                    ship = setbits(ship, TIMER_SHIFT, MASK_2BIT, shipTimerRng(rng));
+
+                    break;
+                }
+                case ShipType::RESTLESS: {
+                    // Непоседа просто двигается на 1 клетку вправо.
+
+                    // Устанавливаем сдвиг на 1 по x и состояние плавания.
+                    ship = setbits(ship, OFFSET_X_SHIFT, MASK_4BIT, 1 + 8);
+                    ship = setbits(ship, STATE_SHIFT, MASK_2BIT, ShipState::FLOATING);
+
+                    break;
+                }
                 }
 
                 break;
             }
-            case ShipState::FINISHING:
-            {
+            case ShipState::FINISHING: {
                 /*
                 Обрабатываем лодку, которая победила и уплывает с карты.
                 Для этого просто двигаем ее на +1 по x, проверяя оставшееся расстояние до края карты.
@@ -463,16 +435,14 @@ int main()
                 // Сколько клеток осталось до края карты.
                 uint64_t distanceLeft = WIDTH - (shipPosition % WIDTH + 1);
 
-                if (distanceLeft == 0)
-                {
+                if (distanceLeft == 0) {
                     // Мы уже стоим у края карты, значит лодка исчезает.
                     ship = setbits(ship, STATE_SHIFT, MASK_2BIT, ShipState::DEAD);
                     activeShips--;
-                } else 
-                {
+                } else {
                     // Еще осталось место для движения до края.
                     shipPosition++;
-    
+
                     ship = setbits(ship, POSITION_SHIFT, MASK_34BIT, shipPosition);
                 }
 
@@ -487,7 +457,8 @@ int main()
         lastTick += tickDuration;
     }
 
-    if (window.isOpen()) window.close();
+    if (window.isOpen())
+        window.close();
 
     return 0;
 }
