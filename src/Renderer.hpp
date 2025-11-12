@@ -302,7 +302,15 @@ inline void Renderer::setZoom(float zoom)
 // Хелпер для получения цвета клетки из количества рыбы.
 inline sf::Color Renderer::fishColorFromAmount(uint8_t fish) const noexcept
 {
-    uint8_t clamped = (fish > 15u) ? 15u : fish;
-    uint8_t g = static_cast<uint8_t>((static_cast<int>(clamped) * 255) / 15);
+    constexpr uint8_t minG = 50; // минимальная яркость
+    constexpr uint8_t maxG = 255; // максимальная яркость
+    constexpr uint8_t maxFish = 15;
+
+    uint8_t clamped = (fish > maxFish) ? maxFish : fish;
+
+    // Пропорционально масштабируем значение в диапазон [minG, maxG]
+    uint8_t g = static_cast<uint8_t>(
+        minG + (static_cast<int>(clamped) * (maxG - minG)) / maxFish);
+
     return sf::Color(0, g, 0);
 }
