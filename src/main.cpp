@@ -5,13 +5,13 @@
 #include <vector>
 #include <math.h>
 #include <random>
+#include <iostream>
 
 #include "Renderer.hpp"
-#include "SFML/System/Vector2.hpp"
-#include "SFML/Window/VideoMode.hpp"
+#include "InfoPanel.hpp"
 
-#define WIDTH 100'00ULL
-#define HEIGHT 100'00ULL
+#define WIDTH 10'000ULL
+#define HEIGHT 10'000ULL
 #define POSITION_BOUND WIDTH* HEIGHT - 1
 #define SHIP_COUNT 100'000ULL
 #define WIN_FISH_COUNT 10'000LL
@@ -97,6 +97,13 @@ int main()
     // Инициализация отрисовки.
     sf::RenderWindow window(sf::VideoMode(sf::Vector2u(800, 600)), "GrandFishing");
     Renderer renderer(window, WIDTH, HEIGHT, 12);
+    // Инициализация панели информации.
+    sf::Font font;
+    if (!font.openFromFile("Inter.ttf")) {
+        std::cout << "Ошибка открытия файла шрифта" << std::endl;
+        return 1;
+    }
+    InfoPanel info(window, font);
 
     /*
     Карта для хранения только активных клеток.
@@ -151,6 +158,14 @@ int main()
     using Clock = std::chrono::steady_clock;
     auto lastTick = Clock::now();
     std::chrono::milliseconds tickDuration(TICK_DURATION_MS);
+    // Отладочная информация
+    uint64_t greedyCount = 0;
+    uint64_t lazyCount = 0;
+    uint64_t restlessCount = 0;
+    uint64_t minFishCount = std::numeric_limits<int>::max();
+    uint64_t maxFishCount = 0;
+    double_t meanFishCount = 0;
+
     // Основной цикл, симулирующий один тик.
     while (activeShips > 0 && window.isOpen()) {
         // Обрабатываем события SFML.
@@ -159,7 +174,17 @@ int main()
         }
 
         // Отрисовываем сцену.
+        std::vector<std::string> lines;
+        lines.push_back("Tick: " + std::to_string(tick));
+        lines.push_back("Greedy: " + std::to_string(greedyCount));
+        lines.push_back("Lazy: " + std::to_string(lazyCount));
+        lines.push_back("Restless: " + std::to_string(restlessCount));
+        lines.push_back("Min fish catched: " + std::to_string(minFishCount));
+        lines.push_back("Max fish catched: " + std::to_string(maxFishCount));
+        lines.push_back("Mean fish catched: " + std::to_string(meanFishCount));
+        info.setLines(lines);
         renderer.drawScene(activeCells, ships);
+        info.draw();
         window.display();
 
         // Не выполняем шаги симуляции, если с последнего тика прошло меньше tickDuration времени.
@@ -180,11 +205,40 @@ int main()
         expiring.clear();
 
         // Обрабатываем суда.
+        lazyCount = 0;
+        greedyCount = 0;
+        restlessCount = 0;
+        minFishCount = std::numeric_limits<int>::max();
+        maxFishCount = 0;
+        meanFishCount = 0;
         for (int i = 0; i < SHIP_COUNT; i++) {
             uint64_t ship = ships[i];
 
             uint8_t shipType = ship & MASK_2BIT; // Тип лодки
             uint8_t shipState = (ship >> STATE_SHIFT) & MASK_2BIT; // Состояние лодки.
+            uint64_t fishCount = (ship >> FISH_SHIFT) & MASK_14BIT; // Количество рыбы, которое выловила лодка.
+
+            // Обновим статистику, но только для не-мертвых лодок.
+            if (shipState != ShipState::DEAD) {
+                switch (shipType) {
+                case ShipType::GREEDY: {
+                    greedyCount++;
+                    break;
+                }
+                case ShipType::LAZY: {
+                    lazyCount++;
+                    break;
+                }
+                case ShipType::RESTLESS: {
+                    restlessCount++;
+                    break;
+                }
+                }
+
+                minFishCount = std::min(minFishCount, fishCount);
+                maxFishCount = std::max(maxFishCount, fishCount);
+                meanFishCount += static_cast<double>(fishCount) / static_cast<double>(activeShips);
+            }
 
             // Обновляем лодку
             switch (shipState) {
