@@ -21,6 +21,7 @@
 ## Запуск
 
 `cmake --build build` \
-`cmake -B build`
+`cmake -B build` \
+`./build/GrandFishing`
 
 Запущенную симуляцию можно зумить и таскать на левую кнопку мышки.

@@ -22,16 +22,19 @@ if(CMAKE_BUILD_TYPE MATCHES Release)
 
 endif()
 
-include(FetchContent)
-FetchContent_Declare(
-  sfml
-  GIT_REPOSITORY https://github.com/SFML/SFML.git
-  GIT_TAG        3.0.2
-)
-FetchContent_MakeAvailable(sfml)
-
 add_executable(GrandFishing
   src/main.cpp
 )
+
+include(FetchContent)
+
+FetchContent_Declare(
+  sfml
+  GIT_REPOSITORY https://github.com/SFML/SFML.git
+  GIT_TAG 3.0.2
+)
+FetchContent_MakeAvailable(sfml)
+
+target_link_libraries(GrandFishing PRIVATE sfml-graphics sfml-window sfml-system)
 
 target_link_libraries(GrandFishing PRIVATE SFML::Graphics)
