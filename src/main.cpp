@@ -10,8 +10,8 @@
 #include "SFML/System/Vector2.hpp"
 #include "SFML/Window/VideoMode.hpp"
 
-#define WIDTH 100'0ULL
-#define HEIGHT 100'0ULL
+#define WIDTH 100'00ULL
+#define HEIGHT 100'00ULL
 #define POSITION_BOUND WIDTH* HEIGHT - 1
 #define SHIP_COUNT 100'000ULL
 #define WIN_FISH_COUNT 10'000LL
