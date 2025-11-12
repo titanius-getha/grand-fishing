@@ -39,10 +39,8 @@ private:
     unsigned int m_baseCellSizePx;
 
     sf::VertexArray m_cellsVA;
-
-    sf::CircleShape m_shipDot; // точка для плывущего корабля
-    sf::RectangleShape m_shipSquare; // квадрат для рыбачущего
-    sf::CircleShape m_shipTriangle; // треугольник для уплывающего с карты
+    sf::VertexArray m_shipsVA;
+    int m_shipCirclePoints = 30; // Количество точек для аппроксимации круга.
 
     float m_zoom = 1.0f;
     const float m_zoomMin = 0.000000001f;
@@ -82,25 +80,10 @@ inline Renderer::Renderer(sf::RenderWindow& window, uint32_t gridW, uint32_t gri
     if (m_zoom != 1.0f)
         m_view.zoom(1.0f / m_zoom);
 
-    float r = std::max(1.f, cellSizePx * 0.18f);
-    m_shipDot.setRadius(r);
-    m_shipDot.setOrigin(sf::Vector2f(r, r));
-    m_shipDot.setPointCount(30);
-    m_shipDot.setFillColor(sf::Color::Black);
-
-    float sq = std::max(1.f, cellSizePx * 0.5f);
-    m_shipSquare.setSize({ sq, sq });
-    m_shipSquare.setOrigin(sf::Vector2f(sq * 0.5f, sq * 0.5f));
-    m_shipSquare.setFillColor(sf::Color::Black);
-
-    float triR = std::max(1.f, cellSizePx * 0.35f);
-    m_shipTriangle.setRadius(triR);
-    m_shipTriangle.setOrigin(sf::Vector2f(triR, triR));
-    m_shipTriangle.setPointCount(3);
-    m_shipTriangle.setFillColor(sf::Color::Black);
-
     m_cellsVA.resize(0);
     m_cellsVA.setPrimitiveType(sf::PrimitiveType::Triangles);
+
+    m_shipsVA.setPrimitiveType(sf::PrimitiveType::Triangles);
 }
 
 inline void Renderer::handleEvent(const std::optional<sf::Event>& event)
@@ -235,37 +218,76 @@ inline void Renderer::drawScene(const CellMap& activeCells, const ShipArray& shi
         m_window.draw(m_cellsVA);
     }
 
+    // Отрисовка судов.
+    m_shipsVA.clear();
+    std::vector<sf::Vertex> shipVerts;
+    // Оценка числа вершин для судов.
+    shipVerts.reserve(std::min<std::size_t>(ships.size() * 90, 65536));
+
+    sf::Color shipColor = sf::Color::Black;
+
+    float dotRadius = std::max(1.f, cellSizeWorld * 0.18f);
+    float squareSize = std::max(1.f, cellSizeWorld * 0.5f);
+    float triangleRadius = std::max(1.f, cellSizeWorld * 0.35f);
+
     for (std::size_t i = 0; i < ships.size(); ++i) {
         uint64_t ship = ships[i];
-
         uint64_t shipPosition = (ship >> 20) & 0x3FFFFFFFFULL;
         uint8_t shipState = (ship >> 2) & 0x3;
+        if (shipState == 3 /*DEAD*/)
+            continue;
+
         uint64_t sx = shipPosition % m_gridW;
         uint64_t sy = shipPosition / m_gridW;
-
         float cx = static_cast<float>(sx) * cellSizeWorld + cellSizeWorld * 0.5f;
         float cy = static_cast<float>(sy) * cellSizeWorld + cellSizeWorld * 0.5f;
-
-        float viewLeft = viewRect.position.x;
-        float viewTop = viewRect.position.y;
-        float viewRight = viewLeft + viewRect.size.x;
-        float viewBottom = viewTop + viewRect.size.y;
-
-        if (cx < viewLeft || cx > viewRight || cy < viewTop || cy > viewBottom) {
+        if (cx < viewRect.position.x || cx > viewRect.position.x + viewRect.size.x || cy < viewRect.position.y || cy > viewRect.position.y + viewRect.size.y) {
             continue;
         }
 
         if (shipState == 0 /*FLOATING*/) {
-            m_shipDot.setPosition(sf::Vector2f(cx, cy));
-            m_window.draw(m_shipDot);
+            // Круг как набор треугольников от центра
+            sf::Vector2f center(cx, cy);
+            for (int p = 0; p < m_shipCirclePoints; ++p) {
+                float angle1 = (2.f * 3.14159265f * p) / m_shipCirclePoints;
+                float angle2 = (2.f * 3.14159265f * (p + 1)) / m_shipCirclePoints;
+                sf::Vector2f p1(cx + dotRadius * std::cos(angle1), cy + dotRadius * std::sin(angle1));
+                sf::Vector2f p2(cx + dotRadius * std::cos(angle2), cy + dotRadius * std::sin(angle2));
+                shipVerts.emplace_back(center, shipColor);
+                shipVerts.emplace_back(p1, shipColor);
+                shipVerts.emplace_back(p2, shipColor);
+            }
         } else if (shipState == 1 /*FISHING*/) {
-            m_shipSquare.setPosition(sf::Vector2f(cx, cy));
-            m_window.draw(m_shipSquare);
+            // Отрисовка квадрата.
+            float half = squareSize * 0.5f;
+            sf::Vector2f tl(cx - half, cy - half);
+            sf::Vector2f tr(cx + half, cy - half);
+            sf::Vector2f bl(cx - half, cy + half);
+            sf::Vector2f br(cx + half, cy + half);
+            shipVerts.emplace_back(tl, shipColor);
+            shipVerts.emplace_back(tr, shipColor);
+            shipVerts.emplace_back(br, shipColor);
+            shipVerts.emplace_back(tl, shipColor);
+            shipVerts.emplace_back(br, shipColor);
+            shipVerts.emplace_back(bl, shipColor);
         } else if (shipState == 2 /*FINISHING*/) {
-            m_shipTriangle.setPosition(sf::Vector2f(cx, cy));
-            m_window.draw(m_shipTriangle);
-        } else {
+            // Отрисовка треугольника.
+            float height = triangleRadius * std::sqrt(3.f) / 2.f;
+            sf::Vector2f top(cx, cy - triangleRadius * 2.f / 3.f);
+            sf::Vector2f left(cx - height, cy + triangleRadius / 3.f);
+            sf::Vector2f right(cx + height, cy + triangleRadius / 3.f);
+            shipVerts.emplace_back(top, shipColor);
+            shipVerts.emplace_back(left, shipColor);
+            shipVerts.emplace_back(right, shipColor);
         }
+    }
+
+    if (!shipVerts.empty()) {
+        m_shipsVA.resize(shipVerts.size());
+        for (std::size_t i = 0; i < shipVerts.size(); ++i) {
+            m_shipsVA[i] = shipVerts[i];
+        }
+        m_window.draw(m_shipsVA);
     }
 
     // Границы карты.
